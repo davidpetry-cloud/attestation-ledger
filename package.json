@@ -1,0 +1,35 @@
+{
+  "name": "attestation-ledger",
+  "version": "0.1.0",
+  "description": "Provenance for expert assertions. A model can propose a value; only a named human can attest it. Status derives from verification dates, so attestations decay unless re-checked.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": "./src/index.js",
+  "files": ["src"],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "provenance",
+    "attestation",
+    "ai-governance",
+    "human-in-the-loop",
+    "expert-knowledge",
+    "audit-trail",
+    "sop"
+  ],
+  "author": "David Petry (https://david-petry.netlify.app)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidpetry-cloud/attestation-ledger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidpetry-cloud/attestation-ledger/issues"
+  },
+  "homepage": "https://github.com/davidpetry-cloud/attestation-ledger#readme",
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

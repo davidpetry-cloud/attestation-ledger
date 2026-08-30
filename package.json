@@ -1,11 +1,13 @@
 {
   "name": "attestation-ledger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Provenance for expert assertions. A model can propose a value; only a named human can attest it. Status derives from verification dates, so attestations decay unless re-checked.",
   "type": "module",
   "main": "src/index.js",
   "exports": "./src/index.js",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"

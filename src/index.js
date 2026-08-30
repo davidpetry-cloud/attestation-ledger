@@ -18,6 +18,39 @@
  * assertions get treated as facts.
  */
 
+/**
+ * @typedef {"practitioner" | "model"} Source
+ * @typedef {"proposed" | "attested" | "expired" | "rejected"} Status
+ */
+
+/**
+ * @typedef {object} Attestation
+ * @property {Source} source            Who produced the assertion.
+ * @property {string|null} [by]         Name of the human who signed it.
+ * @property {string|null} [role]       Their role, for context.
+ * @property {string} [basis]           What the assertion is grounded in.
+ * @property {string} [verified]        ISO date (YYYY-MM-DD) of verification.
+ * @property {number} [ttlDays]         Shelf life in days. Defaults to 730.
+ * @property {string} [model]           Model identifier, when source is "model".
+ * @property {string} [rationale]       The model's stated reasoning.
+ * @property {Rejection} [rejection]    Present once a human has turned it down.
+ * @property {object|null} [supersedes] What this attestation replaced.
+ */
+
+/**
+ * @typedef {object} Rejection
+ * @property {string} by         Name of the human who rejected it.
+ * @property {string|null} role  Their role.
+ * @property {string} reason     Why it was turned down.
+ * @property {string} reviewed   ISO date of the review.
+ */
+
+/**
+ * @typedef {object} Record
+ * @property {Attestation} attestation  The provenance block. Everything else
+ *   on the record is your own payload — this library does not touch it.
+ */
+
 export const SOURCE = {
   PRACTITIONER: "practitioner",
   MODEL: "model"
@@ -51,6 +84,12 @@ const DAY_MS = 86400000;
  * A rejection does not decay. It stands until somebody supersedes it by
  * attesting a replacement value, which records the rejection in `supersedes`.
  */
+/**
+ * Derive the current status of a record.
+ * @param {Record} record
+ * @param {Date} [now] Override the clock, for testing.
+ * @returns {Status}
+ */
 export function resolveStatus(record, now = new Date()) {
   const a = record?.attestation;
   if (!a) return STATUS.PROPOSED;
@@ -72,6 +111,12 @@ export function resolveStatus(record, now = new Date()) {
 }
 
 /** Days remaining before an attestation lapses. Negative once overdue. */
+/**
+ * Days until the attestation lapses. Negative once overdue.
+ * @param {Record} record
+ * @param {Date} [now]
+ * @returns {number|null} Null when the record has no readable date.
+ */
 export function daysRemaining(record, now = new Date()) {
   const a = record?.attestation;
   if (!a?.verified) return null;
@@ -85,6 +130,13 @@ export function daysRemaining(record, now = new Date()) {
  * Can this record be worked from without a second look?
  * Only attested records clear. Proposed, expired and rejected all need a human.
  */
+/**
+ * True only for a current attestation. Proposed, expired and rejected
+ * records all return false.
+ * @param {Record} record
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
 export function isTrusted(record, now = new Date()) {
   return resolveStatus(record, now) === STATUS.ATTESTED;
 }
@@ -96,6 +148,18 @@ export function isTrusted(record, now = new Date()) {
  * survives alongside what the practitioner actually ratified. Throws rather
  * than failing quietly: a silent refusal here would be the exact failure the
  * module exists to prevent.
+ */
+/**
+ * Have a named human sign a record. Returns a new record; never mutates.
+ * @param {Record} record
+ * @param {object} signature
+ * @param {string} signature.by         Required. Anonymous sign-off is not sign-off.
+ * @param {string} [signature.role]
+ * @param {string} signature.basis      Required. What grounds the assertion.
+ * @param {string} [signature.verified] ISO date. Defaults to today.
+ * @param {number} [signature.ttlDays]  Defaults to 730.
+ * @returns {Record} A new record with practitioner provenance.
+ * @throws {Error} If `by` or `basis` is missing, or the date is unreadable.
  */
 export function attest(record, { by, role, basis, verified, ttlDays } = {}) {
   if (!by || !String(by).trim()) {
@@ -132,6 +196,19 @@ export function attest(record, { by, role, basis, verified, ttlDays } = {}) {
  *
  * Only a named human can reject, for the same reason only a named human can
  * attest: an unattributed judgement is not a judgement.
+ */
+/**
+ * Record that a named human reviewed a value and turned it down. The values
+ * stay in the dataset with the reasoning attached — a rejection is a finding,
+ * not a deletion.
+ * @param {Record} record
+ * @param {object} review
+ * @param {string} review.by         Required.
+ * @param {string} [review.role]
+ * @param {string} review.reason     Required. Why it was turned down.
+ * @param {string} [review.reviewed] ISO date. Defaults to today.
+ * @returns {Record} A new record carrying the rejection.
+ * @throws {Error} If `by` or `reason` is missing, or the date is unreadable.
  */
 export function reject(record, { by, role, reason, reviewed } = {}) {
   if (!by || !String(by).trim()) {
@@ -173,6 +250,15 @@ function buildSupersedes(prev) {
 }
 
 /** Build a model proposal. There is deliberately no path from here to attested. */
+/**
+ * Build a model proposal. There is deliberately no path from here to
+ * attested — only `attest()` with a named human can do that.
+ * @param {object} bands Your payload. Shape is entirely yours.
+ * @param {object} [origin]
+ * @param {string} [origin.model]     Which model produced it.
+ * @param {string} [origin.rationale] Its stated reasoning, so it can be argued with.
+ * @returns {Record}
+ */
 export function propose(bands, { model, rationale } = {}) {
   return {
     bands,
@@ -187,6 +273,12 @@ export function propose(bands, { model, rationale } = {}) {
 }
 
 /** Count records by resolved status. */
+/**
+ * Count records by resolved status.
+ * @param {Record[]} records
+ * @param {Date} [now]
+ * @returns {{proposed: number, attested: number, expired: number, rejected: number}}
+ */
 export function tally(records, now = new Date()) {
   const counts = { proposed: 0, attested: 0, expired: 0, rejected: 0 };
   for (const record of records) counts[resolveStatus(record, now)] += 1;

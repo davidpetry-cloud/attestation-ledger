@@ -29,7 +29,7 @@
  * @property {string|null} [by]         Name of the human who signed it.
  * @property {string|null} [role]       Their role, for context.
  * @property {string} [basis]           What the assertion is grounded in.
- * @property {string} [verified]        ISO date (YYYY-MM-DD) of verification.
+ * @property {string} [verified]        ISO date (YYYY-MM-DD) of verification: a calendar day, not an instant.
  * @property {number} [ttlDays]         Shelf life in days. Defaults to 730.
  * @property {string} [model]           Model identifier, when source is "model".
  * @property {string} [rationale]       The model's stated reasoning.
@@ -67,6 +67,44 @@ export const STATUS = {
 export const DEFAULT_TTL_DAYS = 730;
 
 const DAY_MS = 86400000;
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/*
+ * Dates here are calendar days, not instants. "2026-08-25" means that day
+ * wherever the record is read, and "today" is the day on the reader's clock.
+ * Treating the date as midnight UTC made a record read in the Americas in
+ * the evening a day older than it was, and stamped tomorrow's date on a
+ * sign-off made after 7pm in New York.
+ */
+
+/** The calendar day of an ISO date (or a timestamp's date part) as a day count, or null if unreadable. */
+function dayOf(iso) {
+  const m = ISO_DAY.exec(String(iso ?? ""));
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+  const t = Date.UTC(y, mo, d);
+  const back = new Date(t);
+  // Refuse a day the calendar doesn't have ("2026-02-30") instead of rolling it over.
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo || back.getUTCDate() !== d) return null;
+  return t / DAY_MS;
+}
+
+/** The calendar day on the reader's clock, as a day count. */
+function today(now) {
+  return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / DAY_MS;
+}
+
+/** Today's date on the reader's clock, as YYYY-MM-DD. */
+function todayISO(now = new Date()) {
+  const two = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
+/** Whole days from the verification date to today, or null if the date is unreadable. */
+function ageInDays(verified, now) {
+  const day = dayOf(verified);
+  return day === null ? null : today(now) - day;
+}
 
 /**
  * Resolve the current status of a record.
@@ -100,19 +138,18 @@ export function resolveStatus(record, now = new Date()) {
   if (a.source === SOURCE.MODEL) return STATUS.PROPOSED;
   if (!a.by || !a.verified) return STATUS.PROPOSED;
 
-  const verifiedAt = new Date(a.verified);
-  if (Number.isNaN(verifiedAt.getTime())) return STATUS.PROPOSED;
+  const ageDays = ageInDays(a.verified, now);
+  if (ageDays === null) return STATUS.PROPOSED;
 
+  // Good through its last day (ttl days after verification), lapsed the next.
   const ttl = a.ttlDays ?? DEFAULT_TTL_DAYS;
-  const ageDays = (now.getTime() - verifiedAt.getTime()) / DAY_MS;
-
   if (ageDays > ttl) return STATUS.EXPIRED;
   return STATUS.ATTESTED;
 }
 
-/** Days remaining before an attestation lapses. Negative once overdue. */
 /**
- * Days until the attestation lapses. Negative once overdue.
+ * Whole days until the attestation lapses: 0 on its last good day, negative
+ * once lapsed. Counted in calendar days on the reader's clock.
  * @param {Record} record
  * @param {Date} [now]
  * @returns {number|null} Null when the record has no readable date.
@@ -120,10 +157,9 @@ export function resolveStatus(record, now = new Date()) {
 export function daysRemaining(record, now = new Date()) {
   const a = record?.attestation;
   if (!a?.verified) return null;
-  const verifiedAt = new Date(a.verified);
-  if (Number.isNaN(verifiedAt.getTime())) return null;
-  const ttl = a.ttlDays ?? DEFAULT_TTL_DAYS;
-  return Math.round(ttl - (now.getTime() - verifiedAt.getTime()) / DAY_MS);
+  const ageDays = ageInDays(a.verified, now);
+  if (ageDays === null) return null;
+  return (a.ttlDays ?? DEFAULT_TTL_DAYS) - ageDays;
 }
 
 /**
@@ -168,8 +204,8 @@ export function attest(record, { by, role, basis, verified, ttlDays } = {}) {
   if (!basis || !String(basis).trim()) {
     throw new Error(`${by} must state what the assertion is grounded in.`);
   }
-  const date = verified ?? new Date().toISOString().slice(0, 10);
-  if (Number.isNaN(new Date(date).getTime())) {
+  const date = verified ?? todayISO();
+  if (dayOf(date) === null) {
     throw new Error(`"${date}" is not a readable verification date.`);
   }
 
@@ -217,8 +253,8 @@ export function reject(record, { by, role, reason, reviewed } = {}) {
   if (!reason || !String(reason).trim()) {
     throw new Error(`${by} must say why the value was turned down.`);
   }
-  const date = reviewed ?? new Date().toISOString().slice(0, 10);
-  if (Number.isNaN(new Date(date).getTime())) {
+  const date = reviewed ?? todayISO();
+  if (dayOf(date) === null) {
     throw new Error(`"${date}" is not a readable review date.`);
   }
 

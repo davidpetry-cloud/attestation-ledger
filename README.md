@@ -35,6 +35,14 @@ and TTL every time you ask, so an attestation decays on its own unless somebody
 re-checks it against reality. A rejection is the exception: it does not decay,
 and it stands until superseded by a new attestation.
 
+Dates are **calendar days, not instants**. `verified: "2026-08-25"` means that
+day wherever the record is read, and "today" is the day on the reader's clock,
+so the count is the same at breakfast and at a late gig in any time zone. An
+attestation is good through its last day (`ttlDays` after verification) and
+lapses the day after. Dates must be `YYYY-MM-DD` (a timestamp's date part is
+read too); anything else, including a day the calendar doesn't have such as
+`2026-02-30`, is unreadable, so the record counts as unverified.
+
 ## Usage
 
 ```js
@@ -98,7 +106,7 @@ resolveStatus(turned);    // "rejected", and it stays rejected until superseded
 | `reject(record, { by, role, reason, reviewed })` | Named human turns a record down. Throws without `by` and `reason`. Returns a new record. |
 | `resolveStatus(record, now?)` | Derive `proposed` / `attested` / `expired` / `rejected`. Rejection outranks everything; the model check outranks the rest. |
 | `isTrusted(record, now?)` | `true` only for a current attestation. |
-| `daysRemaining(record, now?)` | Days until the attestation lapses. Negative once overdue. |
+| `daysRemaining(record, now?)` | Whole days until the attestation lapses: 0 on its last good day, negative once lapsed. |
 | `tally(records, now?)` | Counts by resolved status. |
 | `SOURCE`, `STATUS`, `DEFAULT_TTL_DAYS` | Constants. Default TTL is 730 days. |
 

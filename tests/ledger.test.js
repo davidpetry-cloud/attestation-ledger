@@ -28,7 +28,7 @@ describe("the rule — a model can propose, only a human can attest", () => {
         by: "David Petry",
         role: "FOH engineer",
         basis: "Twenty years at the desk",
-        verified: new Date().toISOString().slice(0, 10),
+        verified: "2026-01-01",
         ttlDays: 730
       }
     };
@@ -57,7 +57,7 @@ describe("the rule — a model can propose, only a human can attest", () => {
     });
     expect(signed.attestation.source).toBe(SOURCE.PRACTITIONER);
     expect(signed.attestation.supersedes.source).toBe(SOURCE.MODEL);
-    expect(resolveStatus(signed, new Date("2026-08-23"))).toBe(STATUS.ATTESTED);
+    expect(resolveStatus(signed, new Date(2026, 7, 23))).toBe(STATUS.ATTESTED);
   });
 
   it("leaves the original proposal untouched when ratifying", () => {
@@ -114,7 +114,7 @@ describe("rejection — a finding, not a deletion", () => {
     const turned = reject(proposal, {
       by: "David Petry", reason: "Wrong", reviewed: "2019-01-01"
     });
-    expect(resolveStatus(turned, new Date("2026-08-23"))).toBe(STATUS.REJECTED);
+    expect(resolveStatus(turned, new Date(2026, 7, 23))).toBe(STATUS.REJECTED);
   });
 
   it("outranks the model check, so a rejected proposal does not read as merely proposed", () => {
@@ -136,7 +136,7 @@ describe("rejection — a finding, not a deletion", () => {
       basis: "Re-checked with a banjo at a 150-cap room",
       verified: "2026-08-23"
     });
-    expect(resolveStatus(replaced, new Date("2026-08-24"))).toBe(STATUS.ATTESTED);
+    expect(resolveStatus(replaced, new Date(2026, 7, 24))).toBe(STATUS.ATTESTED);
     expect(replaced.attestation.rejection).toBeUndefined();
     expect(replaced.attestation.supersedes.rejection.reason).toMatch(/aggressive/);
   });
@@ -155,20 +155,20 @@ describe("attestations decay", () => {
   };
 
   it("holds inside its shelf life", () => {
-    expect(resolveStatus(record, new Date("2026-03-01"))).toBe(STATUS.ATTESTED);
+    expect(resolveStatus(record, new Date(2026, 2, 1))).toBe(STATUS.ATTESTED);
   });
 
   it("lapses to expired once past it", () => {
-    expect(resolveStatus(record, new Date("2026-06-01"))).toBe(STATUS.EXPIRED);
+    expect(resolveStatus(record, new Date(2026, 5, 1))).toBe(STATUS.EXPIRED);
   });
 
   it("stops being trusted the moment it lapses", () => {
-    expect(isTrusted(record, new Date("2026-06-01"))).toBe(false);
+    expect(isTrusted(record, new Date(2026, 5, 1))).toBe(false);
   });
 
   it("counts down the days remaining, going negative when overdue", () => {
-    expect(daysRemaining(record, new Date("2026-02-01"))).toBe(69);
-    expect(daysRemaining(record, new Date("2026-06-01"))).toBeLessThan(0);
+    expect(daysRemaining(record, new Date(2026, 1, 1))).toBe(69);
+    expect(daysRemaining(record, new Date(2026, 5, 1))).toBeLessThan(0);
   });
 
   it("treats an unreadable verification date as unverified", () => {
